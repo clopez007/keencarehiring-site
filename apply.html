@@ -38,6 +38,7 @@ input,select,textarea{font:inherit}
 @media (max-width:600px){.terms div{grid-template-columns:1fr;gap:4px}.apply-card{padding:24px}}
 @media (max-width:600px){h1{font-size:2.2rem!important}}
 </style>
+<script src="https://www.google.com/recaptcha/api.js" async defer></script>
 </head>
 <body>
 <div style="font-family: 'Plus Jakarta Sans', system-ui, sans-serif; color: #24111B; background: #FFFAF6; width: 100%; min-height: 100vh; display: flex; flex-direction: column">
@@ -135,6 +136,7 @@ input,select,textarea{font:inherit}
 
 <label style="display: flex; gap: 12px; align-items: flex-start; font-size: 15px; line-height: 1.5; color: #4A3540"><input type="checkbox" name="fields[ai_call_consent][]" value="I agree to a short screening call from Keen Care's AI assistant at the phone number I provided, and I understand the call will be recorded for hiring review." required style="width: 20px; height: 20px; margin-top: 2px; flex: none; accent-color: #ED1C65">I agree to a short screening call from Keen Care's AI assistant at the phone number I provided, and I understand the call will be recorded for hiring review.</label>
 
+<div class="g-recaptcha" data-sitekey="6Lf1KHQUAAAAAFNKEX1hdSWCS3mRMv4FlFaNslaD"></div>
 <button type="submit" style="min-height: 52px; border: none; border-radius: 999px; background: #D61B5F; color: #FFFFFF; font-weight: 700; font-size: 17px; cursor: pointer">Apply</button>
 <p id="form-error" style="display: none; margin: 0; font-size: 14px; color: #A3122F">Something went wrong. Please try again.</p>
 <p style="margin: 0; font-size: 13px; color: #6E5762">All fields are required.</p>
@@ -165,12 +167,21 @@ input,select,textarea{font:inherit}
 <script>
 (function(){
   var f=document.getElementById('apply-form'), t=document.getElementById('apply-thanks'), err=document.getElementById('form-error'), btn=f.querySelector('button[type=submit]');
+  function fail(msg){ err.textContent=msg||'Something went wrong. Please try again.'; err.style.display='block'; btn.disabled=false; btn.textContent='Apply'; if(window.grecaptcha){ try{ grecaptcha.reset(); }catch(_){} } }
   f.addEventListener('submit',function(e){
-    e.preventDefault(); err.style.display='none'; btn.disabled=true; btn.textContent='Sending…';
+    e.preventDefault(); err.style.display='none';
+    var tok=f.querySelector('[name="g-recaptcha-response"]');
+    if(!tok || !tok.value){ err.textContent='Please check the "I\'m not a robot" box.'; err.style.display='block'; return; }
+    btn.disabled=true; btn.textContent='Sending…';
     var data=new URLSearchParams(new FormData(f));
-    fetch(f.action,{method:'POST',body:data,mode:'no-cors'}).then(function(){
-      f.style.display='none'; t.hidden=false; t.style.display='flex';
-    }).catch(function(){ err.style.display='block'; btn.disabled=false; btn.textContent='Apply'; });
+    fetch(f.action,{method:'POST',body:data}).then(function(r){ return r.json(); }).then(function(res){
+      if(res && res.success){ f.style.display='none'; t.hidden=false; t.style.display='flex'; return; }
+      var msgs=[]; var fe=(res && res.errors && res.errors.fields)||{};
+      Object.keys(fe).forEach(function(k){ msgs=msgs.concat(fe[k]); });
+      if(!msgs.length && res && res.errors){ Object.keys(res.errors).forEach(function(k){ if(typeof res.errors[k]==='string') msgs.push(res.errors[k]); }); }
+      if(window.console) console.error('MailerLite rejected the application', res);
+      fail(msgs.length ? msgs.join(' ') : null);
+    }).catch(function(e){ if(window.console) console.error(e); fail(); });
   });
 })();
 </script>
